@@ -12,44 +12,103 @@
   | suc x, 0 => false
   | suc x, suc y => x < y
 
-\func lookup => {?}
+\func lookup {A : \Type} (xs : List A) (idx : Nat) (proof : T (idx < length xs)) : A
+  | nil, 0, ()
+  | :: a xs, 0, proof => a
+  | :: a xs', suc idx', proof' => lookup xs' idx' proof'
 
 -- 2. Реализуйте аналоги функции replicate для vec и Vec (эта функция создает список заданной длины, состоящий из повторений данного элемента).
+\func replicate {A : \Type} (x : A) (n : Nat) : vec A n
+  \elim n
+    | 0 => ()
+    | suc n' => (x, replicate x n')
+
+\func replicateVec {A : \Type} (x : A) (n : Nat) : Vec A n
+  \elim n
+    | 0 => vnil
+    | suc n' => vcons x (replicateVec x n')
 
 -- 3. Реализуйте аналоги функции map для vec и Vec.
+\func map {A B : \Type} {n : Nat} (f : A -> B) (xs : vec A n) : vec B n \elim n
+  | 0 => ()
+  | suc n' => (f xs.1, map f xs.2)
+
+\func mapVec {A B : \Type} {n : Nat} (f : A -> B) (xs : Vec A n) : Vec B n \elim n, xs
+  | 0, vnil => vnil
+  | suc n', vcons x xs' => vcons (f x) (mapVec f xs')
 
 -- 4. Реализуйте аналоги функции zipWith для vec и Vec.
 --    Функция должна принимать вектора одинаковой длины.
 
+\func zipWith {A B C : \Type} {n : Nat} (f : A -> B -> C) (xs : vec A n) (ys : vec B n) : vec C n \elim n
+  | 0 => ()
+  | suc n => (f xs.1 ys.1, zipWith f xs.2 ys.2)
+
+\func zipWithVec {A B C : \Type} {n : Nat} (f : A -> B -> C) (xs : Vec A n) (ys : Vec B n) : Vec C n \elim n, xs, ys
+  | 0, vnil, vnil => vnil
+  | suc n', vcons x xs', vcons y ys' => vcons (f x y) (zipWithVec f xs' ys')
+
 -- 5. Определите конгруэнтность для функций двух аргументов через transport.
 --    Можно использовать любые функции, определенные через transport.
 
-\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' => {?}
+\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' =>
+  \let fa'b=fab' => transport (\lam x => f x b = f a b') p (pmap (\lam x => f a x) q) \in
+  \let fa'b'=fa'b => pmap (\lam x => f a' x) (sym q) \in
+  \let fab'=fab => pmap (\lam x => f a x) (sym q) \in
+    sym (fa'b'=fa'b *> fa'b=fab' *> fab'=fab)
 
 -- 6. Докажите, что transport выражается через pmap и repl и наоборот.
 
 -- repl говорит, что если у нас есть два равных типа, то у нас есть функция из одного во второй.
 -- Определите repl через transport.
 
-\func repl {A B : \Type} (p : A = B) (a : A) : B => {?}
+\func repl {A B : \Type} (p : A = B) (a : A) : B =>
+  transport (\lam T => T) p a
 
 -- Определите transport через repl и pmap.
 
-\func transport' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' => {?}
+\func transport' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' =>
+  repl (pmap B p) b
 
 -- 7. Определите тип CTree A n полных бинарных деревьев высоты ровно n, которые хранят элементы только во внутренних узлах, но не в листьях.
 --    Высота листа равна 0.
 
-\data CTree (A : \Type) (n : Nat)
+\data CTree (A : \Type) (n : Nat) \elim n
+  | 0 => CLeaf
+  | suc n' => CNode (CTree A n') A (CTree A n')
 
 -- 8. Определите тип Tree A n бинарных деревьев высоты не больше n, которые хранят элементы только во внутренних узлах, но не в листьях.
 --    Высота листа равна 0.
 
-\data Tree (A : \Type) (n : Nat)
+\data Tree (A : \Type) (n : Nat) \elim n
+  | 0 => Leaf
+  | suc n' => { Node (Tree A n') A (Tree A n')  | NodeLeaf }
 
 -- определите функцию, возвращающую высоту дерева.
 
-\func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n) => {?}
+\func maxFin {n : Nat} (xs : Fin (suc n)) (ys : Fin (suc n)) : Fin (suc n) \elim n
+  | 0 => fzero
+  | suc n' => \case xs, ys \with {
+    | fzero, fzero => fzero
+    | fzero, fsuc ys' => fsuc ys'
+    | fsuc xs', fzero => fsuc xs'
+    | fsuc xs', fsuc ys' => fsuc (maxFin xs' ys')
+  }
+
+\func testMaxFin1 : maxFin fin0 fin0 = fin0 => idp
+\func testMaxFin2 : maxFin fin1 fin2 = fin2 => idp
+\func testMaxFin3 : maxFin fin2 fin0 = fin2 => idp
+\func testMaxFin4 : maxFin fin2 fin1 = fin2 => idp
+\func testMaxFin5 : maxFin fin1 fin1 = fin1 => idp
+
+\func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n)
+  | 0, Leaf => fzero
+  | suc n, NodeLeaf => fzero
+  | suc n', Node t1 a t2 => fsuc (maxFin (height n' t1) (height n' t2))
+
+\func testHeight1 : height 2 (Node NodeLeaf 0 NodeLeaf) = fin1 => idp
+\func testHeight2 : height {Nat} 2 NodeLeaf = fin0 => idp
+\func testHeight3 : height 2 (Node NodeLeaf 0 (Node Leaf 0 Leaf)) = fin2 => idp
 
 -- Optional task
 -- 9. Функции Fin n -> A соответствуют спискам элементов A длины n.
