@@ -144,5 +144,5 @@
 
 \func id' {A : \Type} (a : A) => a
 
-\func idTest1 => id' (id' id)
-\func idTest2 => id' Maybe
+\func idTest1 => id' (\suc (\suc \lp)) (id' (\suc \lp) (id \lp))
+\func idTest2 => id' (\suc \lp) Maybe
