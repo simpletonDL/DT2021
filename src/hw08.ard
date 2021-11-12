@@ -92,6 +92,16 @@
   | :: x (:: x' xs'), :: y (:: y' ys'), perm-swap x=y' x'=y xs'=ys' =>
     rewrite (x=y', x'=y, xs'=ys') (Insertion.sort-perm.insert-comm y' y (Insertion.sort ys'))
 
+\func perm-comm {A : Dec} {xs ys : List A} (p : Perm xs ys) : Perm ys xs \elim xs, ys, p
+  | nil, nil, perm-nil => perm-nil
+  | :: x xs, :: y ys, perm-cons x=y p' => perm-cons (sym x=y) (perm-comm p')
+  | xs, ys, perm-trans p1 p2 => perm-trans (perm-comm p2) (perm-comm p1)
+  | :: x (:: x' xs), :: y (:: y' ys), perm-swap x=y' x'=y xs=ys => perm-swap (sym x'=y) (sym x=y') (sym xs=ys)
+
+\func f' {A : Dec} (xs ys : List A) (sort_xs=sort_ys : Insertion.sort xs = Insertion.sort ys) : Perm xs ys
+  => \let p1 => rewrite sort_xs=sort_ys (Insertion.sort-perm xs) \in
+     \let p2 => perm-comm (Insertion.sort-perm ys) \in
+     perm-trans p1 p2
 -- 3. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort.
 
 \func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l
