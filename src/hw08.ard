@@ -1,6 +1,10 @@
+\import Algebra.Meta
 \import Data.Bool
 \import Data.List \hiding (headDef)
-\import Utils (<->)
+\import Logic.Meta
+\import Meta
+\import Paths.Meta
+\import Utils (*>, <->, Empty, pmap, sym, transport)
 \import lect08
 \import Order.LinearOrder
 \open LinearOrder
@@ -9,8 +13,84 @@
 --    * filter p xs является подсписком xs
 --    * Все элементы filter p xs удовлетворяют предикату p
 --    * Любой подсписок xs с тем же свойством является подсписком filter p xs
+\data Sublist {A : \Type} (xs : List A) (ys : List A) \with
+  | nil, _ => emptySublist
+  | :: x xs', :: y ys' => headEquals (x = y) (Sublist xs' ys')
+  | xs, :: y ys' => skipHead (Sublist xs ys')
+
+\data ForAllInList {A : \Type} (p : A -> Bool) (xs : List A) \with
+  | p, nil => forall-empty
+  | p, :: x xs => forall-cons (p x = true) (ForAllInList p xs)
+
+\func filter {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | :: x xs => \case p x \with {
+    | false => filter p xs
+    | true => x :: filter p xs
+  }
+
+\func filter-sublist {A : \Type} (xs : List A) (p : A -> Bool) : Sublist (filter p xs) xs \elim xs
+  | nil => emptySublist
+  | :: a xs => cases (p a) \with {
+    | true => headEquals idp (filter-sublist xs p)
+    | false => skipHead (filter-sublist xs p)
+  }
+
+\func filter-satisfy {A : \Type} (xs : List A) (p : A -> Bool) : ForAllInList p (filter p xs) \elim xs
+  | nil => forall-empty
+  | :: x xs' => \case p x \as b, idp : p x = b \return
+  ForAllInList p (\case b \with {
+    | false => filter p xs'
+    | true => x :: filter p xs'
+  })
+  \with {
+    | false, _ => filter-satisfy xs' p
+    | true, px=true => forall-cons px=true (filter-satisfy xs' p)
+  }
+
+\func filter-any-sublist {A : \Type} (xs : List A) (p : A -> Bool)
+                         (ys : List A) (ys-sublist-xs : Sublist ys xs) (forall : ForAllInList p ys) : Sublist ys (filter p xs)
+\elim xs, ys
+  | nil, nil => emptySublist
+  | nil, :: a ys => ys-sublist-xs
+  | :: x xs', nil => emptySublist
+  | :: x xs', :: y ys' =>
+    \case p x \as b, idp : p x = b
+    \return
+      Sublist (y :: ys') (\case b \with {
+      | false => filter p xs'
+      | true => x :: filter p xs'
+      })
+    \with {
+      | false, px=false =>
+        \let ys-sublist-xs' : Sublist (y :: ys') xs' =>
+          \case ys-sublist-xs \with {
+            | headEquals y=x xs'-sublist-ys' => \case forall \with {
+              | forall-cons py=true f => \case sym py=true *> pmap p y=x *> px=false
+            }
+            | skipHead s => s
+          }
+        \in filter-any-sublist xs' p (y :: ys') ys-sublist-xs' forall
+      | true, px=true => \case ys-sublist-xs \with {
+        | headEquals y=x ys'-sublist-xs' =>
+          \let forall' : ForAllInList p ys' => \case \elim forall \with {
+            | forall-cons _ f => f
+          }
+          \in headEquals y=x (filter-any-sublist xs' p ys' ys'-sublist-xs' forall')
+        | skipHead s => skipHead (filter-any-sublist xs' p (y :: ys') s forall)
+      }
+    }
+
 
 -- 2. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2.
+\func f {A : Dec} {xs ys : List A} (p : Perm xs ys) : Insertion.sort xs = Insertion.sort ys \elim xs, ys, p
+  | nil, nil, perm-nil => idp
+  | :: x xs', :: y ys', perm-cons x=y perm =>
+    \let sort_xs'=sort_ys' => f perm \in
+      rewrite x=y (pmap (\lam zs => Insertion.sort.insert y zs) sort_xs'=sort_ys')
+  | xs, ys, perm-trans p1 p2 => f p1 *> f p2
+  | :: x (:: x' xs'), :: y (:: y' ys'), perm-swap x=y' x'=y xs'=ys' =>
+    rewrite (x=y', x'=y, xs'=ys') (Insertion.sort-perm.insert-comm y' y (Insertion.sort ys'))
 
 -- 3. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort.
 
