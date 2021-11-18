@@ -1,7 +1,10 @@
 \import Data.List
+\import Logic.Meta
+\import Meta
 \import Order.LinearOrder
-\import Utils (Maybe, just, maybe, nothing)
-\import lect07(Decide)
+\import Paths.Meta
+\import Utils (Maybe, absurd, just, maybe, nothing)
+\import lect07(Decide, no, yes)
 \import lect09
 \open LinearOrder
 
@@ -19,25 +22,82 @@
   | return-right => {?}
   | >>=-assoc => {?}
 
+\func testTermMonad : (lam (app (var (just 0)) (var nothing))) >>= (\lam v => app (var v) (var v)) =
+                      (lam (app (app (var (just 0)) (var (just 0))) (var nothing))) => idp
+
 -- 2. Определите отношение многошаговой редукции на Term.
 
-\func Red {V : \Set} (t s : Term V) : \Type => {?}
+\data RedN {V : \Set} (t s : Term V)
+  | red-refl (t = s)
+  | red-trans {t' : Term V} (Red1 t t') (RedN t' s)
+
+\func Red {V : \Set} (t s : Term V) : \Type => RedN t s
 
 -- 3. Стратегия редукции -- это функция, которая каждому терму сопоставляет либо некоторый терм, к которому он редуцируется за 1 шаг, либо доказательство, что таких термов нет.
 --    Определите любую стратегию редукции.
 
-\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) => {?}
-
+\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) \elim t
+  | var v => no (\lam (s, red) => \case red)
+  | unit => no (\lam (s, red) => \case red)
+  | app (lam t1) t2 => yes (t1 >>= maybe t2 var, redBeta idp idp)
+  | app (var v) t2 =>
+    \case strategy t2 \with {
+      | yes (t2', t2->t2') => yes (app (var v) t2', redAppRight idp t2->t2')
+      | no n => no (\lam p =>
+        \case p \with {
+          (t', t->t') => cases (t', t->t') \with {
+            | _, redBeta fls _ => \case fls
+            | app _ _, redAppLeft fls _ => \case fls
+            | app _ t2, redAppRight _ t2->t1 => n (t2, t2->t1)
+          }
+        })
+    }
+  | app unit t2 =>
+    \case strategy t2 \with {
+      | yes (t2', t2->t2') => yes (app unit t2', redAppRight idp t2->t2')
+      | no n => no (\lam p =>
+          \case p \with {
+          (t', t->t') => cases (t', t->t') \with {
+            | _, redBeta fls _ => \case fls
+            | app _ _, redAppLeft fls _ => \case fls
+            | app _ t2, redAppRight _ t2->t1 => n (t2, t2->t1)
+          }
+          })
+    }
+  | app (app t11 t12) t2 =>
+    \case strategy t2 \with {
+      | yes (t2', t2->t2') => yes (app (app t11 t12) t2', redAppRight idp t2->t2')
+      | no n1 =>
+        \case strategy (app t11 t12) \with {
+          | yes (l', l->l') => yes (app l' t2, redAppLeft l->l' idp)
+          | no n2 => no
+              (\lam p => \case p \with {
+                | (t', t->t') => cases (t', t->t') \with {
+                  | _, redBeta fls _ => \case fls
+                  | app l r, redAppLeft l->l' t2=r => n2 (l, l->l')
+                  | app l r, redAppRight p1 t2->r => n1 (r, t2->r)
+                }
+              })
+        }
+    }
+  | lam t1 => \case strategy t1 \with {
+    | yes (t1', t1->t1') => yes (lam t1', redLam t1->t1')
+    | no n => no (\lam p => \case p \with {
+      | (t', t->t') => cases (t', t->t') \with {
+        | lam t1, redLam t1->t1' => n (t1, t1->t1')
+      }
+    })
+  }
 -- 4. Докажите, что подтермы достижимого терма достижимы.
+\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim a
+  | acc f => acc (\lam t' t->t' => appAccLeft (f (app t' s) (redAppLeft t->t' idp)))
 
-\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t
-  => {?}
 
-\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s
-  => {?}
+\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s \elim a
+  | acc f => acc (\lam s' s->s' => appAccRight (f (app t s') (redAppRight idp s->s')))
 
-\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t
-  => {?}
+\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t \elim a
+  | acc f => acc (\lam t' t->t' => subLamAcc (f (lam t') (redLam t->t')))
 
 -- 5. Докажите следующую обобщенную лемму о подстановке и выведите из нее обычную версию: если Г, x : A |- b : B и Г |- a : A, то Г |- b[a/x] : B.
 
