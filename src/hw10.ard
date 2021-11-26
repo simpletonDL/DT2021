@@ -1,3 +1,6 @@
+\import Logic.Meta
+\import Meta
+\import Paths.Meta
 \import lect07 \hiding (<=-refl, <=-step, baz, isEven)
 \import lect10
 \import Utils
@@ -9,22 +12,37 @@
 -- Композиция функций
 \func \fixr 9 o {A B C : \Type} (g : B -> C) (f : A -> B) => \lam a => g (f a)
 
-\func o-inj {A B C : \Type} (f : A -> B) (g : B -> C) (p : isInj f) (q : isInj g) : isInj (g `o` f) => {?}
+\func o-inj {A B C : \Type} (f : A -> B) (g : B -> C) (p : isInj f) (q : isInj g) : isInj (g `o` f) =>
+  unfold o (\lam {x} {y} gfx=gfy => p (q gfx=gfy))
 
-\func o-inj' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isInj (g `o` f)) : isInj f => {?}
+\func o-inj' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isInj (g `o` f)) : isInj f =>
+  \lam {x} {y} fx=fy =>
+      \let gfx=gfy => pmap g fx=fy \in p gfx=gfy
 
 -- 2. Определите предикат "делится на 3 или на 5" так, чтобы он возвращал утверждения.
 --    Докажите, что MultipleOf3Or5 вкладывается в ℕ.
 
-\func isMultipleOf3Or5 (n : Nat) : \Type => {?}
+\func isMultipleOf3Or5 (n : Nat) : \Type => T (mod5 n Eq.== 0 || mod3 n Eq.== 0)
 
-\func isMultipleOf3Or5-isProp (n : Nat) : isProp (isMultipleOf3Or5 n) => {?}
+\func testIsMultipleOf3Or5_1 : isMultipleOf3Or5 3 => ()
+\func testIsMultipleOf3Or5_2 : isMultipleOf3Or5 5 => ()
+\func testIsMultipleOf3Or5_3 : Not (isMultipleOf3Or5 4) => absurd
+
+\func isMultipleOf3Or5-isProp (n : Nat) : isProp (isMultipleOf3Or5 n) =>
+  unfold isMultipleOf3Or5 (cases (mod5 n) \with {
+    | 0 => Unit-isProp
+    | suc x => cases (mod3 n) \with {
+      | 0 => Unit-isProp
+      | suc x1 => Empty-isProp
+    }
+  })
 
 \func MultipleOf3Or5 => \Sigma (n : Nat) (isMultipleOf3Or5 n)
 
 \func Mul-inc (m : MultipleOf3Or5) => m.1
 
-\func Mul-inc-isInj : isInj Mul-inc => {?}
+\func Mul-inc-isInj : isInj Mul-inc =>
+  \lam {x} {y} p => sigmaEq (\lam n => isMultipleOf3Or5 n) x y p T-lem
 
 -- 3. Мы будем говорить, что тип A тривиален, если существует элемент в A, такой что любой другой элемент в A равен ему.
 --    Докажите, что тип A тривиален тогда и только тогда, когда A является утверждением и A населен.
@@ -33,11 +51,14 @@
 
 \func \infix 1 <-> (A B : \Type) => \Sigma (A -> B) (B -> A)
 
-\func isTriv-lem (A : \Type) : isTriv A <-> (\Sigma (isProp A) A) => {?}
+\func isTriv-lem (A : \Type) : isTriv A <-> (\Sigma (isProp A) A) =>
+  (\lam (a, f) => (\lam x y => sym (f x) *> f y, a),
+   \lam (p, a) => (a, \lam a' => p a a'))
 
 -- 4. Докажите, что Either не является утверждением в общем случаем.
 
-\func Either-isProp (p : \Pi {A B : \Type} (pA : isProp A) (pB : isProp B) -> isProp (Either A B)) : Empty => {?}
+\func Either-isProp (p : \Pi {A B : \Type} (pA : isProp A) (pB : isProp B) -> isProp (Either A B)) : Empty =>
+  \let f => p Unit-isProp Unit-isProp \in \case f (Either.inl ()) (Either.inr ())
 
 -- 5. Докажите, что LessOrEq является предикатом.
 
@@ -45,7 +66,14 @@
   | 0, m => z<=n
   | suc n, suc m => s<=s (LessOrEq n m)
 
-\func LessOrEq-isProp {n m : Nat} : isProp (LessOrEq n m) => {?}
+\func LessOrEq-isProp {n m : Nat} : isProp (LessOrEq n m) \elim n, m
+  | 0, m => \lam x y => \case \elim x, \elim y \with {| z<=n, z<=n => idp }
+  | suc n, 0 => \lam x y => \case x
+  | suc n, suc m =>
+    \let ih => LessOrEq-isProp {n} {m} \in
+    \lam x y => \case \elim x, \elim y \with {
+      | s<=s x, s<=s y => pmap s<=s (ih x y)
+    }
 
 -- 6. Докажте, что ReflClosure LessOrEq не является предикатом, а ReflClosure (\lam x y => T (x < y)) является.
 
@@ -64,12 +92,16 @@
 
 -- 7. Докажите, что если тип A вкладывается в тип B и B является утверждением, то и A является утверждением.
 
-\func sub-isProp {A B : \Type} (f : A -> B) (p : isInj f) (q : isProp B) : isProp A => {?}
+\func sub-isProp {A B : \Type} (f : A -> B) (p : isInj f) (q : isProp B) : isProp A =>
+  \lam x y => p (q (f x) (f y))
 
 -- 8. Докажите, что тип с разрешимым равенством являетя множеством.
-
-\func Dec-isSet {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) : isSet A
-  => {?}
+-- Недоделал :(
+\func Dec-isSet {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) : isSet A =>
+  \lam a a' => \case dec a a' \with {
+    | yes a=a' => retract-isProp Unit-isProp (\lam _ => ()) (\lam _ => a=a') (\lam x => {?})
+    | no n => \lam x y => \case n x
+  }
 
 -- 9. Если A и B являются множествами, то A `Or` B тоже является множеством.
 
@@ -77,11 +109,41 @@
   | inl A
   | inr B
 
-\func or-isSet {A B : \Type} (p : isSet A) (q : isSet B) : isSet (Or A B) => {?}
+\func orEqSpec {A B : \Type} (x y : Or A B) : \Type
+  | inl a, inl a1 => a = a1
+  | inl a, inr b => Empty
+  | inr b, inl a => Empty
+  | inr b, inr b1 => b = b1
+
+\func orEqSpecIsProp {A B : \Type} (p : isSet A) (q : isSet B) (x y : Or A B): isProp (orEqSpec x y) \elim x, y
+  | inl a, inl a1 => p a a1
+  | inl a, inr b => Empty-isProp
+  | inr b, inl a => Empty-isProp
+  | inr b, inr b1 => q b b1
+
+\func or-isSet {A B : \Type} (p : isSet A) (q : isSet B) : isSet (Or A B) =>
+  setLem orEqSpec (orEqSpecIsProp p q)
+      (\lam a => \case \elim a \with {
+        | inl a => idp
+        | inr b => idp
+      })
+      (\lam a a' spec => \case \elim a, \elim a', \elim spec \with {
+        | inl a, inl a1, a=a1 => pmap inl a=a1
+        | inr b, inr b1, b=b1 => pmap inr b=b1
+      })
 
 -- 10. Если B x является множеством, то \Pi (x : A) -> B x тоже является множеством.
 
-\func pi-isSet {A : \Type} (B : A -> \Type) (p : \Pi (x : A) -> isSet (B x)) : isSet (\Pi (x : A) -> B x) => {?}
+\func piEqSpec {A :\Type} {B : A -> \Type} (f g : \Pi (x : A) -> B x): \Type =>
+  \Pi (x : A) -> f x = g x
+
+\func piEqSpecIsProp {A :\Type} {B : A -> \Type} (p : \Pi (x : A) -> isSet (B x)) (f g : \Pi (x : A) -> B x) : isProp (piEqSpec f g) =>
+  \lam sp1 sp2 => ext (\lam a => \let prop => p a (f a) (g a)
+                                 \in prop (sp1 a) (sp2 a))
+
+\func pi-isSet {A : \Type} (B : A -> \Type) (p : \Pi (x : A) -> isSet (B x)) : isSet (\Pi (x : A) -> B x) =>
+  setLem {\Pi (x : A) -> B x} piEqSpec (piEqSpecIsProp p) (\lam f a => idp)
+                             (\lam f g p1 => ext (\lam a => p1 a))
 
 -- 11. Докажите, что если A является множеством, то List A также им является.
 
