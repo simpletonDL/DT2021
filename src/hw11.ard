@@ -1,13 +1,24 @@
+\import Paths.Meta
+\import lect10 (setLem)
 \import lect11
 \import Utils \hiding (transport,Or,inl,inr)
 
 -- 1. Докажите, что если A : \Prop, то Trunc A эквивалентен A.
 
-\func trunc-prop {A : \Prop} : Trunc A <-> A => {?}
+\func trunc-prop {A : \Prop} : Trunc A <-> A =>
+  (\lam t => \case t \with {| trunc a => a}, trunc)
 
 -- 2. Докажите следующий закон де Моргана.
 
-\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) => {?}
+\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) =>
+  (\lam p => \let (a, bc) => p \in \case bc \with {
+    | inl b => inl (a, b)
+    | inr c => inr (a, c)
+  },
+   \lam abc => \case abc \with {
+     | inl (a, b) => (a, inl b)
+     | inr (a, c) => (a, inr c)
+   })
 
 -- 3. Определите элиминатор для Or через Or-rec, не используя паттерн матчинг на Or.
 
@@ -17,7 +28,7 @@
 
 -- 4. Докажите, что тип утверждений является множеством.
 
-\func prop-isSet : isSet \Prop => {?}
+\func prop-isSet : isSet \Prop => \lam P1 P2 => pathInProp {P1 = P2}
 
 -- 5. Докажите, что функции Prop1-to-Prop2 и Prop2-to-Prop1 взаимно обратны и, как следствие, что Prop1 = Prop2.
 
@@ -29,7 +40,10 @@
 
 \func isCogenerator (C : \Type) => \Pi {A B : \Set} (f g : A -> B) (p : \Pi (h : B -> C) -> h `o` f = h `o` g) -> f = g
 
-\func PropIsCogenerator : isCogenerator \Prop => {?}
+\func PropIsCogenerator : isCogenerator \Prop =>
+  \lam {A} {B} f g p =>
+      ext (\lam a => \let eq : (f a = f a) = (f a = g a) => pmap (\lam h => h a) (p (\lam b => f a = b)) \in
+                      transport (\lam x => x) eq idp)
 
 -- 6b. Тип X называется инъективным, если для любой функции f : A -> X и любой инъекции i : A -> B сущесвует функция l : B -> X такая, что l `o` i = f.
 --     Докажите, что \Prop инъективен.
