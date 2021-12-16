@@ -1,30 +1,79 @@
+\import Logic (inP, truncP)
+\import Meta
+\import Paths.Meta
 \import Utils
+\import lect11 (propExt)
 \import lect12
 \import lect13
 
 -- 1. Докажите, что add x (add x s) = add x s и add x (add y s) = add y (add x s)
 
 \func add-idemp {S : SetSpec} (x : S.A) (s : S) : add x (add x s) = add x s
-  => {?}
+  => setExt (add x (add x s)) (add x s)
+      (\lam y =>
+          (\lam p => \case addProp p \with {
+                      | byLeft a => rewrite a addHead
+                      | byRight b => b
+                    },
+           \lam p => addTail {S} {y} p))
 
-\func add-swap {S : SetSpec} (x y : S.A) (s : S) : add x (add y s) = add y (add x s)
-  => {?}
+\func add-lemm {S : SetSpec} (x y : S.A) (s : S) : \Pi (z : S.A) -> S.isElem z (S.add y (S.add x s)) -> S.isElem z (S.add x (S.add y s)) =>
+  \lam z p => \case addProp p \with {
+    | byLeft a => rewrite a (addTail addHead)
+    | byRight b => \case addProp b \with {
+      | byLeft z=y => rewrite z=y addHead
+      | byRight z-elem-s => addTail (addTail z-elem-s)
+    }
+  }
+
+\func add-swap {S : SetSpec} (x y : S.A) (s : S) : add x (add y s) = add y (add x s) =>
+  setExt (add x (add y s)) (add y (add x s)) (\lam z => (add-lemm y x s z, add-lemm x y s z))
 
 -- 2. Докажите, что множество подмножеств является инстансом SetSpec
 
 \func subsets {A : \Set} : SetSpec {A} (A -> \Prop)
-  => {?}
+  => \new SetSpec {
+    | emptySet => \lam a => Empty
+    | add => \lam a s => \lam a' => Or (a = a') (s a')
+    | isElem => \lam a s => s a
+    | setExt => \lam s s' => \lam extS => ext (\lam a => propExt (\lam sa => (extS a).1 sa) (\lam sa' => (extS a).2 sa'))
+    | emptySetProp => \lam x e => absurd e
+    | addHead => byLeft idp
+    | addTail => \lam sx => byRight sx
+    | addProp => \lam or => \case or \with {
+      | byLeft a => byLeft (sym a)
+      | byRight b => byRight b
+    }
+  }
 
 -- 3. Докажите, что множество подмножеств является наибольшим инстансом, то есть любой другой вкладывается в него.
 
 \func subsets-largest (S : SetSpec) : \Sigma (f : S -> (S.A -> \Prop)) (isInj f)
-  => {?}
+  => (\lam s a => isElem a s,
+      \lam s1 s2 p =>
+          setExt s1 s2 (\lam a => (\lam i => \let xs => pmap (\lam eq => eq a) p \in rewrite (sym xs) i,
+                                   \lam i => \let xs => pmap (\lam eq => eq a) p \in rewrite xs i)))
 
 -- 4. Определите функцию isEmpty для произвольного конечного множества и для ListSet.
 
-\func isEmptySet {S : FinSetSpec} (x : S) : Bool => {?}
+\func isEmptySet {S : FinSetSpec} (x : S) : Bool =>
+  \let listSet => sym (listSet=Set {S}) \in
+  \let q : \Pi (xs : S) -> Bool => rewrite listSet (\lam ys => isEmptyListSet ys) \in q x
 
-\func isEmptyListSet {A : \Set} (x : ListSet A) : Bool => {?}
+\func isEmptyListSet {A : \Set} (x : ListSet A) : Bool =>
+  \let empty (xs : List A) : Bool => \case xs \with {
+    | nil => true
+    | :: a l => false
+  } \in
+  \let emptyEqProof {xs ys : List A} (eq : EqList xs ys) : empty xs = empty ys =>
+    \case \elim xs, \elim ys, eq \with {
+      | nil, nil, eq => unfold empty idp
+      | nil, :: a ys, eq => \let q => (eq a).2 (here idp) \in \case q
+      | :: a xs, nil, eq => \let q => (eq a).1 (here idp) \in \case q
+      | :: a xs, :: b ys, eq => unfold empty idp
+    }
+  \in
+  quotientEx empty emptyEqProof x
 
 -- 5. Определите функцию union {A : \Set} : S A -> S A -> S A для произвольного S A (удовлетворяющего FinSetSpec) и для ListSet.
 
